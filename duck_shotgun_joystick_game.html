@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Duck Hunt — Joystick Edition</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;font-family:system-ui,-apple-system,Segoe UI,sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;color:white;text-shadow:0 2px 3px #000;font-weight:800}
+.panel{position:absolute;top:12px;background:#5a351fdd;border:3px solid #2d190f;border-radius:12px;padding:7px 16px;text-align:center;min-width:120px}
+#health{left:12px}#score{left:50%;transform:translateX(-50%)}#ammo{right:12px}
+.label{font-size:14px}.value{font-size:27px}
+#hearts{letter-spacing:4px;color:#ff334d}
+#gameover{display:none;position:fixed;inset:0;background:#0009;color:white;align-items:center;justify-content:center;flex-direction:column;text-align:center;z-index:4}
+#gameover h1{font-size:52px;margin:0 0 8px}
+button{pointer-events:auto;border:3px solid #2d190f;background:#704321;color:white;font-weight:900;border-radius:12px;padding:14px 28px;font-size:20px}
+#shoot,#aim,#reload{position:fixed;z-index:3;border-radius:50%;width:112px;height:112px;border:3px solid #ffffff66;background:#111a;color:#fff;font-weight:900}
+#shoot{right:24px;bottom:28px;font-size:18px}#aim{right:150px;bottom:95px;width:86px;height:86px;font-size:14px}#reload{right:150px;bottom:10px;width:86px;height:64px;border-radius:18px;font-size:12px}
+#stick{position:fixed;left:24px;bottom:25px;width:145px;height:145px;border-radius:50%;background:#1118;border:3px solid #ffffff55;z-index:3}
+#knob{position:absolute;width:66px;height:66px;left:37px;top:37px;border-radius:50%;background:#444d;border:3px solid #fff8}
+#crosshair{position:fixed;left:50%;top:50%;width:48px;height:48px;transform:translate(-50%,-50%);z-index:2;pointer-events:none}
+#crosshair:before,#crosshair:after{content:"";position:absolute;background:white;box-shadow:0 0 3px #000}
+#crosshair:before{width:48px;height:3px;top:22px;left:0}#crosshair:after{height:48px;width:3px;left:22px;top:0}
+@media(max-width:600px){.panel{top:8px;padding:5px 10px;min-width:95px}.value{font-size:22px}.label{font-size:11px}}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="panel" id="health"><div class="label">HEALTH</div><div class="value" id="hearts">♥ ♥ ♥</div></div>
+  <div class="panel" id="score"><div class="label">SCORE</div><div class="value" id="scoreVal">0</div></div>
+  <div class="panel" id="ammo"><div class="label">AMMO</div><div class="value" id="ammoVal">5 / 5</div></div>
+</div>
+<div id="crosshair"></div>
+<div id="stick"><div id="knob"></div></div>
+<button id="aim">AIM</button><button id="reload">RELOAD</button><button id="shoot">🔫<br>SHOOT</button>
+<div id="gameover"><h1>GAME OVER</h1><p id="finalScore"></p><button id="restart">↻ RESTART</button></div>
+
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+let W,H,dpr,ducks=[],particles=[],score=0,health=3,ammo=5,aiming=false,gameOver=false,last=0,spawn=0;
+const keys={};
+function resize(){dpr=devicePixelRatio||1;W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0)} addEventListener('resize',resize);resize();
+
+function duck(){return {x:-80,y:80+Math.random()*(H*.45),vx:120+Math.random()*100,vy:(Math.random()-.5)*80,s:0.75+Math.random()*.45,rot:0}}
+function spawnDuck(){ducks.push(duck())}
+function update(dt){
+ if(gameOver)return;
+ spawn-=dt;if(spawn<=0){spawnDuck();spawn=1.0+Math.random()*1.5}
+ for(let i=ducks.length-1;i>=0;i--){let d=ducks[i];d.x+=d.vx*dt;d.y+=d.vy*dt;d.rot=Math.sin(d.x*.01)*.08;
+   if(d.y<60||d.y>H*.68)d.vy*=-1;
+   if(d.x>W+100){ducks.splice(i,1);damage();}
+ }
+ particles=particles.filter(p=>(p.life-=dt)>0);particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=180*dt});
+}
+function damage(){health--;ui();if(health<=0){gameOver=true;document.getElementById('finalScore').textContent=`Final score: ${score}`;document.getElementById('gameover').style.display='flex'}}
+function drawDuck(d){
+ ctx.save();ctx.translate(d.x,d.y);ctx.rotate(d.rot);ctx.scale(d.s,d.s);
+ ctx.fillStyle='#4b8b45';ctx.beginPath();ctx.ellipse(0,0,30,16,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#176b3b';ctx.beginPath();ctx.arc(28,-12,13,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#f4b52f';ctx.beginPath();ctx.moveTo(39,-10);ctx.lineTo(55,-5);ctx.lineTo(39,-1);ctx.fill();
+ ctx.fillStyle='#ddd';ctx.beginPath();ctx.ellipse(-7,-1,17,8,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#222';ctx.beginPath();ctx.arc(31,-15,2.5,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(-15,-18,24,7,-.35,0,Math.PI*2);ctx.fill();
+ ctx.restore();
+}
+function draw(){
+ let g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#77b9e8');g.addColorStop(.58,'#f7c879');g.addColorStop(1,'#2b6670');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ ctx.fillStyle='#385d45';ctx.beginPath();ctx.moveTo(0,H*.56);for(let x=0;x<W;x+=80)ctx.lineTo(x,H*.52-Math.sin(x*.013)*35);ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
+ ctx.fillStyle='#327d87';ctx.fillRect(0,H*.62,W,H*.38);
+ for(let x=0;x<W;x+=65){ctx.strokeStyle='#39715e';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(x,H);ctx.lineTo(x+10,H-55-Math.random()*35);ctx.stroke()}
+ ducks.forEach(drawDuck);
+ // shotgun
+ ctx.save();ctx.translate(W*.64,H*.86);ctx.rotate(-.22);ctx.fillStyle='#24160f';ctx.fillRect(-15,-16,330,32);ctx.fillStyle='#704321';ctx.fillRect(115,-30,120,60);ctx.fillStyle='#b06b35';ctx.fillRect(145,-27,72,54);ctx.restore();
+}
+function loop(t){let dt=Math.min(.033,(t-last)/1000||0);last=t;update(dt);draw();requestAnimationFrame(loop)}requestAnimationFrame(loop);
+
+function ui(){document.getElementById('scoreVal').textContent=score;document.getElementById('ammoVal').textContent=`${ammo} / 5`;document.getElementById('hearts').textContent='♥ '.repeat(Math.max(0,health)).trim()||'—'}
+function shoot(){
+ if(gameOver||ammo<=0)return;
+ ammo--; let hit=false;
+ const rect=c.getBoundingClientRect(),cx=W/2,cy=H/2;
+ for(let i=ducks.length-1;i>=0;i--){let d=ducks[i],r=35*d.s;
+   if(Math.hypot(d.x-cx,d.y-cy)<r){score+=10;hit=true;for(let j=0;j<10;j++)particles.push({x:d.x,y:d.y,vx:(Math.random()-.5)*180,vy:(Math.random()-.5)*180,life:.5});ducks.splice(i,1);break}
+ }
+ if(!hit&&Math.random()<.08)damage(); ui();
+ if(ammo===0)setTimeout(reload,400);
+}
+function reload(){ammo=5;ui()}
+document.getElementById('shoot').onpointerdown=e=>{e.preventDefault();shoot()};
+document.getElementById('reload').onpointerdown=e=>{e.preventDefault();reload()};
+document.getElementById('aim').onpointerdown=e=>{aiming=true;document.getElementById('crosshair').style.transform='translate(-50%,-50%) scale(1.35)'};
+document.getElementById('aim').onpointerup=()=>{aiming=false;document.getElementById('crosshair').style.transform='translate(-50%,-50%)'};
+document.getElementById('restart').onclick=()=>{ducks=[];score=0;health=3;ammo=5;gameOver=false;spawn=0;document.getElementById('gameover').style.display='none';ui()};
+addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='Space')shoot();if(e.code==='KeyR')reload()});
+addEventListener('keyup',e=>keys[e.code]=false);
+
+// Mobile joystick: horizontal movement shifts the player's aim/crosshair.
+const stick=document.getElementById('stick'),knob=document.getElementById('knob');let active=false,sx=0,sy=0;
+stick.onpointerdown=e=>{active=true;sx=e.clientX;sy=e.clientY;stick.setPointerCapture(e.pointerId)};
+stick.onpointermove=e=>{if(!active)return;let dx=e.clientX-sx,dy=e.clientY-sy,m=48,len=Math.hypot(dx,dy);if(len>m){dx*=m/len;dy*=m/len}knob.style.transform=`translate(${dx}px,${dy}px)`;document.getElementById('crosshair').style.left=`calc(50% + ${dx*2}px)`;document.getElementById('crosshair').style.top=`calc(50% + ${dy*1.4}px)`};
+stick.onpointerup=stick.onpointercancel=()=>{active=false;knob.style.transform='';document.getElementById('crosshair').style.left='50%';document.getElementById('crosshair').style.top='50%'};
+ui();for(let i=0;i<3;i++)spawnDuck();
+</script>
+</body></html>
