@@ -1,6 +1,7 @@
 /* ============================================================
    DUCK HAVOC — single-player ducks-vs-shotgun arcade shooter
    Vanilla JS + Canvas. Joystick/touch + keyboard/mouse.
+   Health system removed — endless arcade mode.
    ============================================================ */
 (() => {
 'use strict';
@@ -26,8 +27,8 @@ function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch 
 const $ = id => document.getElementById(id);
 const canvas = $('game'), ctx = canvas.getContext('2d');
 const el = {
-  hud: $('hud'), healthFill: $('health-fill'), healthNum: $('health-num'),
-  healthBar: $('health-bar'), shell1: $('shell1'), shell2: $('shell2'),
+  hud: $('hud'),
+  shell1: $('shell1'), shell2: $('shell2'),
   ammoBox: $('hud-ammo'), reloadFill: $('reload-fill'),
   wave: $('hud-wave'), score: $('score'), best: $('best'),
   btnRestart: $('btn-restart'), btnMute: $('btn-mute'),
@@ -105,8 +106,6 @@ const SFX = {
 const PLAYER_SPEED = 350, JUMP_VY = -560, GRAVITY = 1500;
 const SHELL_CAP = 2, RELOAD_TIME = 1.15, FIRE_CD = 0.32;
 const PELLET_COUNT = 7, PELLET_SPREAD = 0.17, PELLET_SPEED = 1500;
-const EGG_DMG = 15, KAMI_DMG = 25, MEDKIT_HEAL = 30;
-const WAVE_CLEAR_HEAL = 10;
 const FLAVOR = ['THE DUCKS ARE COMING!', 'THEY FIGHT BACK!', 'HOLD THE LINE, HUNTER!', 'FEATHERS WILL FLY!', 'NO MERCY FOR MALLARDS!', 'QUACK-O-CALYPSE!'];
 
 /* ------------------------ palettes ------------------------- */
@@ -176,19 +175,19 @@ const G = {
   spawnQueue: [], spawnTimer: 0,
   kamiLeft: 0, kamiTimer: Infinity,
   interT: -1, ambT: 0.5,
-  shake: 0, flash: 0, banner: null,
+  shake: 0, banner: null,
   volley: { id: 0, kills: 0, t: 0, x: 0, y: 0, awarded: true }
 };
 
 const player = {
   x: 0, yOff: 0, vy: 0, grounded: true,
-  hp: 100, invuln: 0, facing: 1, aim: -Math.PI / 2,
+  facing: 1, aim: -Math.PI / 2,
   shells: SHELL_CAP, reload: 0, fireCd: 0, flashT: 0,
   walk: 0, moving: false
 };
 const dog = { x: 200, jumpT: 0 };
 
-let ducks = [], pellets = [], eggs = [], pickups = [];
+let ducks = [], pellets = [], eggs = [];
 let parts = [], pops = [], casings = [];
 
 /* ------------------------- input --------------------------- */
@@ -382,8 +381,6 @@ function killDuck(d, x, y, fromPellet) {
   G.score += pts;
   addPop(x, y - 26, '+' + pts, d.type === 'golden' ? '#ffd166' : '#ffffff');
   SFX.quack(d.type === 'golden' ? 1.45 : rand(0.8, 1.2));
-  if (d.type === 'golden')
-    pickups.push({ x: d.x, y: d.y, vy: 70, t: 0, life: 11, landed: false });
   dog.jumpT = 0.55;
   if (Math.random() < 0.35) SFX.yip();
   const v = G.volley;
@@ -400,23 +397,6 @@ function explodeKami(d) {
                  t: 0, life: rand(0.2, 0.45), color: '#ff9f43' });
   G.shake = Math.max(G.shake, 6);
   SFX.splat();
-}
-
-function damagePlayer(n) {
-  if (player.invuln > 0 || G.state !== 'playing') return;
-  player.hp = Math.max(0, player.hp - n);
-  player.invuln = 1.1;
-  G.flash = 0.55;
-  G.shake = Math.max(G.shake, 9);
-  SFX.hurt(); buzz(60);
-  addPop(player.x, groundY + player.yOff - 70, '-' + n + ' HP', '#ff6b6b');
-  if (player.hp <= 0) endGame();
-}
-
-function hitsPlayer(cx, cy, cr) {
-  const bx = player.x - 17, by = groundY + player.yOff - 56;
-  const nx = clamp(cx, bx, bx + 34), ny = clamp(cy, by, by + 56);
-  return dist2(cx, cy, nx, ny) < cr * cr;
 }
 
 /* ---------------------- particles etc ---------------------- */
@@ -445,12 +425,12 @@ function eggSplat(i, scored) {
 
 /* ------------------------ game flow ------------------------ */
 function startGame() {
-  ducks = []; pellets = []; eggs = []; pickups = []; casings = []; stains = [];
+  ducks = []; pellets = []; eggs = []; casings = []; stains = [];
   G.score = 0; G.newBest = false;
   G.volley = { id: 0, kills: 0, t: 0, x: 0, y: 0, awarded: true };
-  G.ambT = 1; G.shake = 0; G.flash = 0;
+  G.ambT = 1; G.shake = 0;
   player.x = W / 2; player.yOff = 0; player.vy = 0; player.grounded = true;
-  player.hp = 100; player.invuln = 0; player.shells = SHELL_CAP;
+  player.shells = SHELL_CAP;
   player.reload = 0; player.fireCd = 0.3; player.aim = -Math.PI / 2; player.facing = 1;
   G.state = 'playing';
   G.paused = false;
@@ -525,8 +505,6 @@ function update(dt) {
         const bonus = 50 * G.wave;
         G.score += bonus;
         addPop(W / 2, H * 0.35, 'WAVE CLEAR  +' + bonus, '#a8e063');
-        player.hp = Math.min(100, player.hp + WAVE_CLEAR_HEAL);
-        addPop(player.x, groundY - 74, '+' + WAVE_CLEAR_HEAL + ' HP', '#7cfc9a');
         SFX.pickup();
       } else {
         G.interT -= dt;
@@ -549,7 +527,6 @@ function update(dt) {
   updateDucks(dt);
   updateEggs(dt);
   updatePellets(dt);
-  updatePickups(dt);
 
   // particles / popups / casings / stains
   for (let i = parts.length - 1; i >= 0; i--) {
@@ -586,7 +563,6 @@ function update(dt) {
   if (dog.jumpT > 0) dog.jumpT -= dt;
 
   G.shake = Math.max(0, G.shake - 32 * dt);
-  G.flash = Math.max(0, G.flash - 2.6 * dt);
   if (G.banner) { G.banner.t += dt; if (G.banner.t > 1.9) G.banner = null; }
 
   syncHud();
@@ -659,7 +635,6 @@ function updatePlayer(dt) {
   if (fireHeld()) tryFire();
   player.fireCd = Math.max(0, player.fireCd - dt);
   player.flashT = Math.max(0, player.flashT - dt);
-  player.invuln = Math.max(0, player.invuln - dt);
   if (player.shells < SHELL_CAP) {
     player.reload += dt;
     if (player.reload >= RELOAD_TIME) { player.reload = 0; player.shells = SHELL_CAP; SFX.pump(); }
@@ -682,21 +657,14 @@ function updateDucks(dt) {
           d.vx = clamp((tx - d.x) / 0.9, -280, 280);
           d.vy = rand(520, 640);
         }
-      } else { // dive
+      } else { // dive - no longer damages player, just explodes on ground
         d.vy = Math.min(d.vy + 320 * dt, 720);
         d.x += d.vx * dt; d.y += d.vy * dt;
         if (Math.abs(d.vx) > 1) d.dir = d.vx > 0 ? 1 : -1;
         if (Math.random() < dt * 28)
           parts.push({ kind: 'smoke', x: d.x + rand(-4, 4), y: d.y - 14, vx: 0, vy: -30, t: 0, life: 0.35, size: rand(2, 4), color: 'rgba(255,110,80,' });
-        if (G.state === 'playing' && hitsPlayer(d.x, d.y, d.r)) {
-          explodeKami(d); ducks.splice(i, 1);
-          damagePlayer(KAMI_DMG);
-          continue;
-        }
         if (d.y >= groundY - 12) {
           explodeKami(d); ducks.splice(i, 1);
-          if (G.state === 'playing' && player.grounded && Math.abs(player.x - d.x) < 85)
-            damagePlayer(KAMI_DMG);
           continue;
         }
       }
@@ -722,11 +690,6 @@ function updateEggs(dt) {
     const e = eggs[i];
     e.vy += 950 * dt;
     e.x += e.vx * dt; e.y += e.vy * dt; e.rot += dt * 4;
-    if (G.state === 'playing' && hitsPlayer(e.x, e.y, e.r + 3)) {
-      eggSplat(i, false);
-      damagePlayer(EGG_DMG);
-      continue;
-    }
     if (e.y >= groundY - 4) eggSplat(i, false);
   }
 }
@@ -761,36 +724,9 @@ function updatePellets(dt) {
   }
 }
 
-function updatePickups(dt) {
-  for (let i = pickups.length - 1; i >= 0; i--) {
-    const p = pickups[i];
-    p.t += dt; p.life -= dt;
-    if (p.y < groundY - 12) {
-      p.y += p.vy * dt;
-      p.x += Math.sin(p.t * 2.2) * 18 * dt;
-      if (p.y >= groundY - 12) p.landed = true;
-    }
-    if (G.state === 'playing' && hitsPlayer(p.x, p.y, 22)) {
-      player.hp = Math.min(100, player.hp + MEDKIT_HEAL);
-      addPop(p.x, p.y - 20, '+' + MEDKIT_HEAL + ' HP', '#7cfc9a');
-      SFX.pickup();
-      pickups.splice(i, 1); continue;
-    }
-    if (p.life <= 0) pickups.splice(i, 1);
-  }
-}
-
 /* ------------------------- HUD sync ------------------------ */
-const hudCache = { hp: -1, shells: -1, score: -1, best: -1, wave: -1 };
+const hudCache = { shells: -1, score: -1, best: -1, wave: -1 };
 function syncHud() {
-  const hp = Math.ceil(player.hp);
-  if (hp !== hudCache.hp) {
-    hudCache.hp = hp;
-    el.healthFill.style.width = hp + '%';
-    el.healthNum.textContent = hp;
-    el.healthFill.classList.toggle('low', hp <= 28);
-    el.healthFill.classList.toggle('mid', hp > 28 && hp <= 55);
-  }
   if (player.shells !== hudCache.shells) {
     hudCache.shells = player.shells;
     el.shell1.classList.toggle('spent', player.shells < 1);
@@ -835,7 +771,6 @@ function render() {
   drawStains();
 
   drawDog();
-  for (const p of pickups) drawPickup(p);
   if (G.state !== 'start') drawPlayer();
   for (const d of ducks) drawDuck(d);
   for (const e of eggs) drawEgg(e);
@@ -849,7 +784,6 @@ function render() {
 
   // full-screen effects (not shaken)
   ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
-  if (G.flash > 0) { ctx.fillStyle = `rgba(255,45,45,${G.flash * 0.4})`; ctx.fillRect(0, 0, W, H); }
   if (mouse.active && G.state === 'playing') drawCrosshair();
 }
 
@@ -929,7 +863,6 @@ function drawPlayer() {
   ctx.save();
   ctx.translate(player.x, feet);
   if (dead) ctx.rotate(1.45);
-  else if (player.invuln > 0 && ((G.time * 16) | 0) % 2 === 0) ctx.globalAlpha = 0.4;
 
   // shadow
   ell(0, 1, 15, 4, 'rgba(0,0,0,0.25)');
@@ -1097,28 +1030,6 @@ function drawCasing(c) {
   ctx.globalAlpha = clamp(1.3 - c.t, 0, 1);
   ctx.fillStyle = '#e8c15a'; ctx.fillRect(-3, -1.6, 6, 3.2);
   ctx.fillStyle = '#b0432e'; ctx.fillRect(-3, -1.6, 1.8, 3.2);
-  ctx.restore();
-}
-
-function drawPickup(p) {
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  if (p.life < 2 && ((G.time * 8) | 0) % 2 === 0) ctx.globalAlpha = 0.35;
-  if (!p.landed) {
-    ctx.fillStyle = '#e8e8ef';
-    ctx.beginPath(); ctx.arc(0, -24, 15, Math.PI, 0); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#d9455f';
-    ctx.beginPath(); ctx.arc(0, -24, 15, Math.PI * 1.2, Math.PI * 1.5); ctx.lineTo(0, -24); ctx.closePath(); ctx.fill();
-    line(-13, -22, -7, -7, 'rgba(80,80,100,0.7)', 1.4);
-    line(13, -22, 7, -7, 'rgba(80,80,100,0.7)', 1.4);
-  } else {
-    ctx.translate(0, Math.sin(G.time * 3) * 1.5);
-  }
-  ctx.fillStyle = '#fdfdfd'; rr(-9, -8, 18, 14, 3);
-  ctx.strokeStyle = '#c23b4e'; ctx.lineWidth = 1.4;
-  ctx.strokeRect(-9, -8, 18, 14);
-  ctx.fillStyle = '#e63946';
-  ctx.fillRect(-2, -5.5, 4, 9); ctx.fillRect(-4.5, -3, 9, 4);
   ctx.restore();
 }
 
