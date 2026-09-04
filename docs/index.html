@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Duck Havoc — Ducks vs Shotgun</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦆</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rubik:wght@400;600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<!-- ======================= HUD ======================= -->
+<div id="hud" class="hidden">
+  <div id="hud-left">
+    <div class="hud-box" id="hud-health">
+      <span class="heart">❤</span>
+      <div id="health-bar"><div id="health-fill"></div></div>
+      <span id="health-num">100</span>
+    </div>
+    <div class="hud-box" id="hud-ammo">
+      <span class="shell" id="shell1"></span>
+      <span class="shell" id="shell2"></span>
+      <div id="reload-bar"><div id="reload-fill"></div></div>
+    </div>
+  </div>
+
+  <div id="hud-wave">WAVE 1</div>
+
+  <div id="hud-right">
+    <div class="hud-box" id="hud-score-box">
+      <div id="score">0</div>
+      <div id="best">BEST 0</div>
+    </div>
+    <div id="hud-btns">
+      <button id="btn-mute" title="Sound on/off (M)">🔊</button>
+      <button id="btn-restart" title="Restart (R)">↻<span class="btn-label">Restart</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ================ TOUCH CONTROLS =================== -->
+<div id="touch-ui">
+  <div id="joy-base"><div id="joy-knob"></div></div>
+  <div id="btn-fire">FIRE</div>
+</div>
+
+<!-- ================== START SCREEN =================== -->
+<div id="overlay-start" class="overlay">
+  <div class="panel">
+    <div class="pixel title">🦆 DUCK HAVOC</div>
+    <p class="subtitle">The ducks fight back. Grab your shotgun and hold the line, hunter!</p>
+    <div class="controls">
+      <div class="ctl">🕹️ <b>Move</b><br><span class="dim">Joystick / <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd></span></div>
+      <div class="ctl">⬆️ <b>Jump-dodge</b><br><span class="dim">Flick stick up / <kbd>W</kbd> / <kbd>↑</kbd></span></div>
+      <div class="ctl">🔥 <b>Shoot</b><br><span class="dim">FIRE button / Click / <kbd>Space</kbd></span></div>
+      <div class="ctl">🎯 <b>Aim</b><br><span class="dim">Auto-aim on touch · mouse on desktop</span></div>
+    </div>
+    <p class="tips">🥚 Dodge falling eggs &nbsp;·&nbsp; 💣 Shoot kamikaze ducks &nbsp;·&nbsp; ✨ Golden ducks drop medkits<br>🔫 2 shells, auto-pump reload — make every blast count!</p>
+    <button id="btn-play" class="btn-play">▶ &nbsp;PLAY</button>
+    <div class="dim small" id="start-best">BEST 0</div>
+  </div>
+</div>
+
+<!-- ================== GAME OVER ====================== -->
+<div id="overlay-over" class="overlay hidden">
+  <div class="panel">
+    <div class="pixel title red">GAME OVER</div>
+    <p class="subtitle">The ducks won this round… 🪶</p>
+    <div id="ov-newbest" class="badge hidden">★ NEW BEST! ★</div>
+    <div class="stats">
+      <div><span class="dim">SCORE</span><div class="pixel big" id="ov-score">0</div></div>
+      <div><span class="dim">BEST</span><div class="pixel big gold" id="ov-best">0</div></div>
+      <div><span class="dim">WAVE</span><div class="pixel big" id="ov-wave">1</div></div>
+    </div>
+    <button id="btn-again" class="btn-play">↻ &nbsp;PLAY AGAIN</button>
+    <div class="dim small">or press <kbd>R</kbd> / <kbd>Enter</kbd></div>
+  </div>
+</div>
+
+<!-- ==================== PAUSED ======================= -->
+<div id="overlay-pause" class="overlay hidden">
+  <div class="panel slim">
+    <div class="pixel title">PAUSED</div>
+    <p class="subtitle">Tap anywhere or press any key to resume</p>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>

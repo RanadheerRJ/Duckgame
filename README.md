@@ -41,6 +41,20 @@ python3 -m http.server 8000
   💣 kamikaze ducks dive-bomb you (wave 3+). The sky cycles day → sunset → dusk → night.
 - Score, best score (saved locally), wave counter and restart are always on the HUD.
 
+## 🌐 Playing on GitHub Pages
+
+The site is deployed from the `docs/` folder (kept in sync with the root copies of
+`index.html`, `style.css`, `game.js`). After editing the game at the repo root,
+refresh the copies:
+
+```bash
+cp index.html style.css game.js docs/
+```
+
+> Tip: you can also switch **Settings → Pages → Build and deployment → Source**
+> to *“GitHub Actions”* and add a small deploy workflow — then the repo root is
+> deployed directly and the `docs/` copy becomes unnecessary.
+
 ## 🧱 Project layout
 
 ```
