@@ -17,20 +17,9 @@
 <!-- ======================= HUD ======================= -->
 <div id="hud" class="hidden">
   <div id="hud-left">
-    <div class="hud-box" id="hud-ammo">
-      <span class="shell" id="shell1"></span>
-      <span class="shell" id="shell2"></span>
-      <div id="reload-bar"><div id="reload-fill"></div></div>
-    </div>
+    <div id="hud-wave">WAVE 1</div>
   </div>
-
-  <div id="hud-wave">WAVE 1</div>
-
   <div id="hud-right">
-    <div class="hud-box" id="hud-score-box">
-      <div id="score">0</div>
-      <div id="best">BEST 0</div>
-    </div>
     <div id="hud-btns">
       <button id="btn-mute" title="Sound on/off (M)">🔊</button>
       <button id="btn-restart" title="Restart (R)">↻<span class="btn-label">Restart</span></button>
@@ -55,21 +44,17 @@
       <div class="ctl">🔥 <b>Shoot</b><br><span class="dim">FIRE button / Click / <kbd>Space</kbd></span></div>
       <div class="ctl">🎯 <b>Aim</b><br><span class="dim">Auto-aim on touch · mouse on desktop</span></div>
     </div>
-    <p class="tips">🥚 Shoot the eggs mid-air &nbsp;·&nbsp; 💣 Blast kamikaze ducks before they land &nbsp;·&nbsp; ✨ Golden ducks worth 250 pts<br>🔫 Endless waves — survive as long as you can!</p>
+    <p class="tips">🔫 Infinite ammo · Endless waves — blast all ducks!<br>🥚 Shoot eggs · 💣 Stop kamikaze divers</p>
     <button id="btn-play" class="btn-play">▶ &nbsp;PLAY</button>
-    <div class="dim small" id="start-best">BEST 0</div>
   </div>
 </div>
 
-<!-- ================== GAME OVER ====================== -->
+<!-- ================== GAME OVER (kept for compatibility, rarely shown) ====================== -->
 <div id="overlay-over" class="overlay hidden">
   <div class="panel">
-    <div class="pixel title red">GAME OVER</div>
-    <p class="subtitle">The ducks won this round… 🪶</p>
-    <div id="ov-newbest" class="badge hidden">★ NEW BEST! ★</div>
+    <div class="pixel title red">PAUSED</div>
+    <p class="subtitle">You took a break</p>
     <div class="stats">
-      <div><span class="dim">SCORE</span><div class="pixel big" id="ov-score">0</div></div>
-      <div><span class="dim">BEST</span><div class="pixel big gold" id="ov-best">0</div></div>
       <div><span class="dim">WAVE</span><div class="pixel big" id="ov-wave">1</div></div>
     </div>
     <button id="btn-again" class="btn-play">↻ &nbsp;PLAY AGAIN</button>
