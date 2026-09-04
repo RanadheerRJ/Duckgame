@@ -29,21 +29,6 @@ canvas#game { display: block; width: 100vw; height: 100dvh; cursor: none; }
 }
 #hud-left { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 
-#hud-health { display: flex; align-items: center; gap: 8px; }
-#hud-health .heart { font-size: 15px; filter: drop-shadow(0 0 4px rgba(255,60,60,0.8)); }
-#health-bar {
-  width: 150px; height: 16px; border-radius: 8px; overflow: hidden;
-  background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.25);
-}
-#health-fill {
-  height: 100%; width: 100%; border-radius: 8px; transition: width 0.18s ease;
-  background: linear-gradient(90deg, #43e05c, #8ff05a);
-}
-#health-fill.mid { background: linear-gradient(90deg, #ffb703, #ffd166); }
-#health-fill.low { background: linear-gradient(90deg, #e5383b, #ff6b6b); animation: hp-pulse 0.7s infinite; }
-@keyframes hp-pulse { 50% { filter: brightness(1.6); } }
-#health-num { font-weight: 800; font-size: 14px; min-width: 28px; text-align: right; }
-
 #hud-ammo { display: flex; align-items: center; gap: 7px; padding: 7px 12px; position: relative; }
 .shell {
   width: 26px; height: 10px; border-radius: 3px 5px 5px 3px;
@@ -77,7 +62,6 @@ canvas#game { display: block; width: 100vw; height: 100dvh; cursor: none; }
 #btn-restart .btn-label { margin-left: 5px; font-size: 13px; }
 @media (max-width: 620px) {
   #btn-restart .btn-label { display: none; }
-  #health-bar { width: 104px; }
   #score { font-size: 18px; }
 }
 
