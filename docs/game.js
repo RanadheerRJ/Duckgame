@@ -1,7 +1,6 @@
 /* ============================================================
    DUCK HAVOC — single-player ducks-vs-shotgun arcade shooter
    Vanilla JS + Canvas. Joystick/touch + keyboard/mouse.
-   Health system removed — endless arcade mode.
    ============================================================ */
 (() => {
 'use strict';
@@ -27,12 +26,14 @@ function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch 
 const $ = id => document.getElementById(id);
 const canvas = $('game'), ctx = canvas.getContext('2d');
 const el = {
-  hud: $('hud'),
-  shell1: $('shell1'), shell2: $('shell2'),
+  hud: $('hud'), healthFill: $('health-fill'), healthNum: $('health-num'),
+  healthBar: $('health-bar'), shell1: $('shell1'), shell2: $('shell2'),
   ammoBox: $('hud-ammo'), reloadFill: $('reload-fill'),
   wave: $('hud-wave'), score: $('score'), best: $('best'),
+  btnRestart: $('btn-restart'), btnMute: $('btn-mute'),
   joyBase: $('joy-base'), joyKnob: $('joy-knob'), btnFire: $('btn-fire'),
   ovStart: $('overlay-start'), ovOver: $('overlay-over'), ovPause: $('overlay-pause'),
+  btnPlay: $('btn-play'), btnAgain: $('btn-again'),
   ovScore: $('ov-score'), ovBest: $('ov-best'), ovWave: $('ov-wave'),
   ovNewBest: $('ov-newbest'), startBest: $('start-best')
 };
@@ -104,6 +105,9 @@ const SFX = {
 const PLAYER_SPEED = 350, JUMP_VY = -560, GRAVITY = 1500;
 const SHELL_CAP = 2, RELOAD_TIME = 1.15, FIRE_CD = 0.32;
 const PELLET_COUNT = 7, PELLET_SPREAD = 0.17, PELLET_SPEED = 1500;
+const EGG_DMG = 15, KAMI_DMG = 25, MEDKIT_HEAL = 30;
+const WAVE_CLEAR_HEAL = 10;
+const FLAVOR = ['THE DUCKS ARE COMING!', 'THEY FIGHT BACK!', 'HOLD THE LINE, HUNTER!', 'FEATHERS WILL FLY!', 'NO MERCY FOR MALLARDS!', 'QUACK-O-CALYPSE!'];
 
 /* ------------------------ palettes ------------------------- */
 const PALETTES = [
@@ -144,23 +148,16 @@ function buildScenery() {
   if (!clouds.length)
     for (let i = 0; i < 6; i++)
       clouds.push({ x: Math.random() * W, y: rand(H * 0.06, H * 0.38), s: rand(0.6, 1.35), v: rand(5, 15) });
-  try {
-    vignette = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.45, W / 2, H * 0.55, Math.max(W, H) * 0.78);
-    vignette.addColorStop(0, 'rgba(10,10,25,0)');
-    vignette.addColorStop(1, 'rgba(10,10,25,0.34)');
-  } catch (e) { vignette = null; }
+  vignette = ctx.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.45, W / 2, H * 0.55, Math.max(W, H) * 0.78);
+  vignette.addColorStop(0, 'rgba(10,10,25,0)');
+  vignette.addColorStop(1, 'rgba(10,10,25,0.34)');
 }
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
-  const cw = canvas.clientWidth || window.innerWidth || 800;
-  const ch = canvas.clientHeight || window.innerHeight || 600;
-  W = cw; H = ch;
-  try {
-    canvas.width = Math.round(W * DPR);
-    canvas.height = Math.round(H * DPR);
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  } catch (e) {}
+  W = canvas.clientWidth; H = canvas.clientHeight;
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   groundY = H - Math.max(58, H * 0.09);
   buildScenery();
   player.x = clamp(player.x || W / 2, 30, W - 30);
@@ -179,20 +176,20 @@ const G = {
   spawnQueue: [], spawnTimer: 0,
   kamiLeft: 0, kamiTimer: Infinity,
   interT: -1, ambT: 0.5,
-  shake: 0,
+  shake: 0, flash: 0, banner: null,
   volley: { id: 0, kills: 0, t: 0, x: 0, y: 0, awarded: true }
 };
 
 const player = {
   x: 0, yOff: 0, vy: 0, grounded: true,
-  facing: 1, aim: -Math.PI / 2,
+  hp: 100, invuln: 0, facing: 1, aim: -Math.PI / 2,
   shells: SHELL_CAP, reload: 0, fireCd: 0, flashT: 0,
   walk: 0, moving: false
 };
 const dog = { x: 200, jumpT: 0 };
 
-let ducks = [], pellets = [], eggs = [];
-let parts = [], casings = [];
+let ducks = [], pellets = [], eggs = [], pickups = [];
+let parts = [], pops = [], casings = [];
 
 /* ------------------------- input --------------------------- */
 const keys = { left: false, right: false, fire: false, jump: false };
@@ -206,32 +203,24 @@ const fireHeld = () => keys.fire || mouseFire || firePointers.size > 0;
 window.addEventListener('pointerdown', e => {
   SFX.ensure();
   if (G.paused) { setPaused(false); return; }
-  // if not playing, tap anywhere starts
-  if (G.state !== 'playing') {
-    // don't block if it's a button that was removed, but keep check safe
-    if (e.target && e.target.closest && e.target.closest('button')) { /* allow button if exists */ }
-    startGame();
-    return;
-  }
-  if (e.target && e.target.closest && e.target.closest('button')) return;
+  if (e.target.closest('button')) return;
   if (e.pointerType === 'mouse') {
     mouse.active = true; mouse.x = e.clientX; mouse.y = e.clientY;
     if (G.state === 'playing') mouseFire = true;
   } else {
-    if (document.body) document.body.classList.add('touch');
+    document.body.classList.add('touch');
+    if (G.state !== 'playing') return;
     if (e.clientX < W * 0.55 && e.clientY > H * 0.3 && !joy.active) {
       joy.active = true; joy.id = e.pointerId;
       joy.bx = e.clientX; joy.by = e.clientY; joy.dx = 0; joy.dy = 0;
-      if (el.joyBase) {
-        el.joyBase.style.left = joy.bx + 'px';
-        el.joyBase.style.top = joy.by + 'px';
-        el.joyBase.style.bottom = 'auto';
-        el.joyBase.style.transform = 'translate(-50%, -50%)';
-        el.joyBase.classList.add('active');
-      }
+      el.joyBase.style.left = joy.bx + 'px';
+      el.joyBase.style.top = joy.by + 'px';
+      el.joyBase.style.bottom = 'auto';
+      el.joyBase.style.transform = 'translate(-50%, -50%)';
+      el.joyBase.classList.add('active');
     } else {
       firePointers.add(e.pointerId);
-      if (el.btnFire) el.btnFire.classList.add('pressed');
+      el.btnFire.classList.add('pressed');
     }
   }
 });
@@ -245,29 +234,27 @@ window.addEventListener('pointermove', e => {
     const len = Math.hypot(dx, dy);
     if (len > 1) { dx /= len; dy /= len; }
     joy.dx = dx; joy.dy = dy;
-    if (el.joyKnob) el.joyKnob.style.transform = `translate(calc(-50% + ${dx * 42}px), calc(-50% + ${dy * 42}px))`;
+    el.joyKnob.style.transform = `translate(calc(-50% + ${dx * 42}px), calc(-50% + ${dy * 42}px))`;
   }
 });
 function releasePointer(e) {
   if (e.pointerType === 'mouse') { mouseFire = false; return; }
   if (joy.active && e.pointerId === joy.id) {
     joy.active = false; joy.id = null; joy.dx = 0; joy.dy = 0; joy.jumpHeld = false;
-    if (el.joyBase) {
-      el.joyBase.classList.remove('active');
-      el.joyBase.style.left = ''; el.joyBase.style.top = '';
-      el.joyBase.style.bottom = ''; el.joyBase.style.transform = '';
-    }
-    if (el.joyKnob) el.joyKnob.style.transform = 'translate(-50%, -50%)';
+    el.joyBase.classList.remove('active');
+    el.joyBase.style.left = ''; el.joyBase.style.top = '';
+    el.joyBase.style.bottom = ''; el.joyBase.style.transform = '';
+    el.joyKnob.style.transform = 'translate(-50%, -50%)';
   }
   firePointers.delete(e.pointerId);
-  if (!firePointers.size && el.btnFire) el.btnFire.classList.remove('pressed');
+  if (!firePointers.size) el.btnFire.classList.remove('pressed');
 }
 window.addEventListener('pointerup', releasePointer);
 window.addEventListener('pointercancel', releasePointer);
 window.addEventListener('blur', () => {
   keys.left = keys.right = keys.fire = keys.jump = false;
   mouseFire = false; firePointers.clear();
-  if (el.btnFire) el.btnFire.classList.remove('pressed');
+  el.btnFire.classList.remove('pressed');
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('gesturestart', e => e.preventDefault());
@@ -352,6 +339,7 @@ function startWave(n) {
   G.kamiLeft = n >= 3 ? Math.min(1 + n, 8) : 0;
   G.kamiTimer = n >= 3 ? rand(2.5, 4.5) : Infinity;
   G.interT = -1;
+  G.banner = { text: 'WAVE ' + n, sub: FLAVOR[(n - 1) % FLAVOR.length], t: 0 };
   SFX.wave();
 }
 
@@ -392,7 +380,10 @@ function killDuck(d, x, y, fromPellet) {
   feathers(d, x, y);
   const pts = d.type === 'golden' ? 250 : d.type === 'bomber' ? 200 : d.type === 'kami' ? 150 : 100;
   G.score += pts;
+  addPop(x, y - 26, '+' + pts, d.type === 'golden' ? '#ffd166' : '#ffffff');
   SFX.quack(d.type === 'golden' ? 1.45 : rand(0.8, 1.2));
+  if (d.type === 'golden')
+    pickups.push({ x: d.x, y: d.y, vy: 70, t: 0, life: 11, landed: false });
   dog.jumpT = 0.55;
   if (Math.random() < 0.35) SFX.yip();
   const v = G.volley;
@@ -411,6 +402,23 @@ function explodeKami(d) {
   SFX.splat();
 }
 
+function damagePlayer(n) {
+  if (player.invuln > 0 || G.state !== 'playing') return;
+  player.hp = Math.max(0, player.hp - n);
+  player.invuln = 1.1;
+  G.flash = 0.55;
+  G.shake = Math.max(G.shake, 9);
+  SFX.hurt(); buzz(60);
+  addPop(player.x, groundY + player.yOff - 70, '-' + n + ' HP', '#ff6b6b');
+  if (player.hp <= 0) endGame();
+}
+
+function hitsPlayer(cx, cy, cr) {
+  const bx = player.x - 17, by = groundY + player.yOff - 56;
+  const nx = clamp(cx, bx, bx + 34), ny = clamp(cy, by, by + 56);
+  return dist2(cx, cy, nx, ny) < cr * cr;
+}
+
 /* ---------------------- particles etc ---------------------- */
 function wingColor(t) {
   return t === 'golden' ? '#f1c85a' : t === 'bomber' ? '#6d7885' : t === 'kami' ? '#7d4444' : '#8a6238';
@@ -422,6 +430,7 @@ function feathers(d, x, y) {
                  vx: rand(-90, 90), vy: rand(-150, 10), rot: rand(0, TAU), vr: rand(-4, 4),
                  t: 0, life: rand(0.8, 1.6), size: rand(4, 7), color: col });
 }
+function addPop(x, y, text, color) { pops.push({ x, y, text, color, t: 0 }); }
 function addStain(x) { stains.push({ x, t: 0 }); }
 function eggSplat(i, scored) {
   const e = eggs[i];
@@ -431,27 +440,25 @@ function eggSplat(i, scored) {
     parts.push({ kind: 'goo', x: e.x, y: e.y, vx: rand(-120, 120), vy: rand(-180, -30),
                  t: 0, life: rand(0.4, 0.8), size: rand(1.5, 3), color: '#f5eea8' });
   addStain(e.x);
-  if (scored) { G.score += 10; }
+  if (scored) { G.score += 10; addPop(e.x, e.y - 14, '+10', '#f5eea8'); }
 }
 
 /* ------------------------ game flow ------------------------ */
 function startGame() {
-  try {
-    ducks = []; pellets = []; eggs = []; casings = []; stains = [];
-    G.score = 0; G.newBest = false;
-    G.volley = { id: 0, kills: 0, t: 0, x: 0, y: 0, awarded: true };
-    G.ambT = 1; G.shake = 0;
-    player.x = W / 2 || 400; player.yOff = 0; player.vy = 0; player.grounded = true;
-    player.shells = SHELL_CAP;
-    player.reload = 0; player.fireCd = 0.3; player.aim = -Math.PI / 2; player.facing = 1;
-    G.state = 'playing';
-    G.paused = false;
-    if (el.ovStart) el.ovStart.classList.add('hidden');
-    if (el.ovOver) el.ovOver.classList.add('hidden');
-    if (el.ovPause) el.ovPause.classList.add('hidden');
-    if (el.hud) el.hud.classList.remove('hidden');
-    startWave(1);
-  } catch (e) { console.error('startGame error', e); }
+  ducks = []; pellets = []; eggs = []; pickups = []; casings = []; stains = [];
+  G.score = 0; G.newBest = false;
+  G.volley = { id: 0, kills: 0, t: 0, x: 0, y: 0, awarded: true };
+  G.ambT = 1; G.shake = 0; G.flash = 0;
+  player.x = W / 2; player.yOff = 0; player.vy = 0; player.grounded = true;
+  player.hp = 100; player.invuln = 0; player.shells = SHELL_CAP;
+  player.reload = 0; player.fireCd = 0.3; player.aim = -Math.PI / 2; player.facing = 1;
+  G.state = 'playing';
+  G.paused = false;
+  el.ovStart.classList.add('hidden');
+  el.ovOver.classList.add('hidden');
+  el.ovPause.classList.add('hidden');
+  el.hud.classList.remove('hidden');
+  startWave(1);
 }
 
 function endGame() {
@@ -460,21 +467,21 @@ function endGame() {
     if (ducks[i].type === 'kami') { feathers(ducks[i], ducks[i].x, ducks[i].y); ducks.splice(i, 1); }
   if (G.score > G.best) { G.best = G.score; G.newBest = true; store.set('duckhavoc_best', String(G.best)); }
   SFX.over();
-  if (el.ovScore) el.ovScore.textContent = G.score;
-  if (el.ovBest) el.ovBest.textContent = G.best;
-  if (el.ovWave) el.ovWave.textContent = G.wave;
-  if (el.ovNewBest) el.ovNewBest.classList.toggle('hidden', !G.newBest);
-  setTimeout(() => { if (G.state === 'over' && el.ovOver) el.ovOver.classList.remove('hidden'); }, 650);
+  el.ovScore.textContent = G.score;
+  el.ovBest.textContent = G.best;
+  el.ovWave.textContent = G.wave;
+  el.ovNewBest.classList.toggle('hidden', !G.newBest);
+  setTimeout(() => { if (G.state === 'over') el.ovOver.classList.remove('hidden'); }, 650);
 }
 
 function setPaused(v) {
   G.paused = v;
-  if (el.ovPause) el.ovPause.classList.toggle('hidden', !v);
+  el.ovPause.classList.toggle('hidden', !v);
 }
 
 function toggleMute() {
   SFX.muted = !SFX.muted;
-  // mute button removed, but keep logic for M key
+  el.btnMute.textContent = SFX.muted ? '🔇' : '🔊';
   if (!SFX.muted) SFX.click();
 }
 
@@ -517,18 +524,22 @@ function update(dt) {
         G.interT = 1.5;
         const bonus = 50 * G.wave;
         G.score += bonus;
+        addPop(W / 2, H * 0.35, 'WAVE CLEAR  +' + bonus, '#a8e063');
+        player.hp = Math.min(100, player.hp + WAVE_CLEAR_HEAL);
+        addPop(player.x, groundY - 74, '+' + WAVE_CLEAR_HEAL + ' HP', '#7cfc9a');
         SFX.pickup();
       } else {
         G.interT -= dt;
         if (G.interT <= 0) startWave(G.wave + 1);
       }
     }
-    // combo bonus (score only, no floating text)
+    // combo bonus
     const v = G.volley;
     if (!v.awarded && G.time - v.t > 0.45) {
       if (v.kills >= 2) {
         const bonus = (v.kills - 1) * 75;
         G.score += bonus;
+        addPop(v.x, v.y - 46, (v.kills >= 4 ? 'RAMPAGE!' : v.kills === 3 ? 'TRIPLE!' : 'DOUBLE!') + ' +' + bonus, '#ffd166');
         SFX.pickup();
       }
       v.awarded = true;
@@ -538,6 +549,7 @@ function update(dt) {
   updateDucks(dt);
   updateEggs(dt);
   updatePellets(dt);
+  updatePickups(dt);
 
   // particles / popups / casings / stains
   for (let i = parts.length - 1; i >= 0; i--) {
@@ -556,6 +568,10 @@ function update(dt) {
       p.vy += 700 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
     }
   }
+  for (let i = pops.length - 1; i >= 0; i--) {
+    const p = pops[i]; p.t += dt; p.y -= 42 * dt;
+    if (p.t > 1) pops.splice(i, 1);
+  }
   for (let i = casings.length - 1; i >= 0; i--) {
     const c = casings[i];
     c.t += dt; c.vy += 1200 * dt; c.x += c.vx * dt; c.y += c.vy * dt; c.rot += c.vr * dt;
@@ -570,6 +586,8 @@ function update(dt) {
   if (dog.jumpT > 0) dog.jumpT -= dt;
 
   G.shake = Math.max(0, G.shake - 32 * dt);
+  G.flash = Math.max(0, G.flash - 2.6 * dt);
+  if (G.banner) { G.banner.t += dt; if (G.banner.t > 1.9) G.banner = null; }
 
   syncHud();
 }
@@ -641,6 +659,7 @@ function updatePlayer(dt) {
   if (fireHeld()) tryFire();
   player.fireCd = Math.max(0, player.fireCd - dt);
   player.flashT = Math.max(0, player.flashT - dt);
+  player.invuln = Math.max(0, player.invuln - dt);
   if (player.shells < SHELL_CAP) {
     player.reload += dt;
     if (player.reload >= RELOAD_TIME) { player.reload = 0; player.shells = SHELL_CAP; SFX.pump(); }
@@ -663,14 +682,21 @@ function updateDucks(dt) {
           d.vx = clamp((tx - d.x) / 0.9, -280, 280);
           d.vy = rand(520, 640);
         }
-      } else { // dive - no longer damages player, just explodes on ground
+      } else { // dive
         d.vy = Math.min(d.vy + 320 * dt, 720);
         d.x += d.vx * dt; d.y += d.vy * dt;
         if (Math.abs(d.vx) > 1) d.dir = d.vx > 0 ? 1 : -1;
         if (Math.random() < dt * 28)
           parts.push({ kind: 'smoke', x: d.x + rand(-4, 4), y: d.y - 14, vx: 0, vy: -30, t: 0, life: 0.35, size: rand(2, 4), color: 'rgba(255,110,80,' });
+        if (G.state === 'playing' && hitsPlayer(d.x, d.y, d.r)) {
+          explodeKami(d); ducks.splice(i, 1);
+          damagePlayer(KAMI_DMG);
+          continue;
+        }
         if (d.y >= groundY - 12) {
           explodeKami(d); ducks.splice(i, 1);
+          if (G.state === 'playing' && player.grounded && Math.abs(player.x - d.x) < 85)
+            damagePlayer(KAMI_DMG);
           continue;
         }
       }
@@ -696,6 +722,11 @@ function updateEggs(dt) {
     const e = eggs[i];
     e.vy += 950 * dt;
     e.x += e.vx * dt; e.y += e.vy * dt; e.rot += dt * 4;
+    if (G.state === 'playing' && hitsPlayer(e.x, e.y, e.r + 3)) {
+      eggSplat(i, false);
+      damagePlayer(EGG_DMG);
+      continue;
+    }
     if (e.y >= groundY - 4) eggSplat(i, false);
   }
 }
@@ -730,19 +761,46 @@ function updatePellets(dt) {
   }
 }
 
+function updatePickups(dt) {
+  for (let i = pickups.length - 1; i >= 0; i--) {
+    const p = pickups[i];
+    p.t += dt; p.life -= dt;
+    if (p.y < groundY - 12) {
+      p.y += p.vy * dt;
+      p.x += Math.sin(p.t * 2.2) * 18 * dt;
+      if (p.y >= groundY - 12) p.landed = true;
+    }
+    if (G.state === 'playing' && hitsPlayer(p.x, p.y, 22)) {
+      player.hp = Math.min(100, player.hp + MEDKIT_HEAL);
+      addPop(p.x, p.y - 20, '+' + MEDKIT_HEAL + ' HP', '#7cfc9a');
+      SFX.pickup();
+      pickups.splice(i, 1); continue;
+    }
+    if (p.life <= 0) pickups.splice(i, 1);
+  }
+}
+
 /* ------------------------- HUD sync ------------------------ */
-const hudCache = { shells: -1, score: -1, best: -1, wave: -1 };
+const hudCache = { hp: -1, shells: -1, score: -1, best: -1, wave: -1 };
 function syncHud() {
+  const hp = Math.ceil(player.hp);
+  if (hp !== hudCache.hp) {
+    hudCache.hp = hp;
+    el.healthFill.style.width = hp + '%';
+    el.healthNum.textContent = hp;
+    el.healthFill.classList.toggle('low', hp <= 28);
+    el.healthFill.classList.toggle('mid', hp > 28 && hp <= 55);
+  }
   if (player.shells !== hudCache.shells) {
     hudCache.shells = player.shells;
-    if (el.shell1) el.shell1.classList.toggle('spent', player.shells < 1);
-    if (el.shell2) el.shell2.classList.toggle('spent', player.shells < 2);
+    el.shell1.classList.toggle('spent', player.shells < 1);
+    el.shell2.classList.toggle('spent', player.shells < 2);
   }
-  if (el.ammoBox) el.ammoBox.classList.toggle('reloading', player.shells < SHELL_CAP);
-  if (el.reloadFill) el.reloadFill.style.width = (player.shells < SHELL_CAP ? (player.reload / RELOAD_TIME * 100) : 0) + '%';
-  if (G.score !== hudCache.score) { hudCache.score = G.score; if (el.score) el.score.textContent = G.score; }
-  if (G.best !== hudCache.best) { hudCache.best = G.best; if (el.best) el.best.textContent = 'BEST ' + G.best; }
-  if (G.wave !== hudCache.wave) { hudCache.wave = G.wave; if (el.wave) el.wave.textContent = 'WAVE ' + Math.max(1, G.wave); }
+  el.ammoBox.classList.toggle('reloading', player.shells < SHELL_CAP);
+  el.reloadFill.style.width = (player.shells < SHELL_CAP ? (player.reload / RELOAD_TIME * 100) : 0) + '%';
+  if (G.score !== hudCache.score) { hudCache.score = G.score; el.score.textContent = G.score; }
+  if (G.best !== hudCache.best) { hudCache.best = G.best; el.best.textContent = 'BEST ' + G.best; }
+  if (G.wave !== hudCache.wave) { hudCache.wave = G.wave; el.wave.textContent = 'WAVE ' + Math.max(1, G.wave); }
 }
 
 /* --------------------- drawing helpers --------------------- */
@@ -777,17 +835,21 @@ function render() {
   drawStains();
 
   drawDog();
+  for (const p of pickups) drawPickup(p);
   if (G.state !== 'start') drawPlayer();
   for (const d of ducks) drawDuck(d);
   for (const e of eggs) drawEgg(e);
   for (const p of pellets) drawPellet(p);
   for (const c of casings) drawCasing(c);
   drawParts();
+  drawPops();
+  drawBanner();
 
   ctx.restore();
 
   // full-screen effects (not shaken)
-  if (vignette) { ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H); }
+  ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
+  if (G.flash > 0) { ctx.fillStyle = `rgba(255,45,45,${G.flash * 0.4})`; ctx.fillRect(0, 0, W, H); }
   if (mouse.active && G.state === 'playing') drawCrosshair();
 }
 
@@ -867,6 +929,7 @@ function drawPlayer() {
   ctx.save();
   ctx.translate(player.x, feet);
   if (dead) ctx.rotate(1.45);
+  else if (player.invuln > 0 && ((G.time * 16) | 0) % 2 === 0) ctx.globalAlpha = 0.4;
 
   // shadow
   ell(0, 1, 15, 4, 'rgba(0,0,0,0.25)');
@@ -1037,6 +1100,28 @@ function drawCasing(c) {
   ctx.restore();
 }
 
+function drawPickup(p) {
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  if (p.life < 2 && ((G.time * 8) | 0) % 2 === 0) ctx.globalAlpha = 0.35;
+  if (!p.landed) {
+    ctx.fillStyle = '#e8e8ef';
+    ctx.beginPath(); ctx.arc(0, -24, 15, Math.PI, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#d9455f';
+    ctx.beginPath(); ctx.arc(0, -24, 15, Math.PI * 1.2, Math.PI * 1.5); ctx.lineTo(0, -24); ctx.closePath(); ctx.fill();
+    line(-13, -22, -7, -7, 'rgba(80,80,100,0.7)', 1.4);
+    line(13, -22, 7, -7, 'rgba(80,80,100,0.7)', 1.4);
+  } else {
+    ctx.translate(0, Math.sin(G.time * 3) * 1.5);
+  }
+  ctx.fillStyle = '#fdfdfd'; rr(-9, -8, 18, 14, 3);
+  ctx.strokeStyle = '#c23b4e'; ctx.lineWidth = 1.4;
+  ctx.strokeRect(-9, -8, 18, 14);
+  ctx.fillStyle = '#e63946';
+  ctx.fillRect(-2, -5.5, 4, 9); ctx.fillRect(-4.5, -3, 9, 4);
+  ctx.restore();
+}
+
 function drawParts() {
   for (const p of parts) {
     const k = 1 - p.t / p.life;
@@ -1096,6 +1181,46 @@ function drawDog() {
   ctx.restore();
 }
 
+function drawPops() {
+  ctx.textAlign = 'center';
+  for (const p of pops) {
+    const a = clamp(1.4 - p.t * 1.4, 0, 1);
+    ctx.globalAlpha = a;
+    ctx.font = '800 15px Rubik, sans-serif';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(15,15,25,0.8)';
+    ctx.strokeText(p.text, p.x, p.y);
+    ctx.fillStyle = p.color;
+    ctx.fillText(p.text, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawBanner() {
+  if (!G.banner) return;
+  const b = G.banner;
+  const k = b.t < 0.15 ? b.t / 0.15 : b.t > 1.45 ? Math.max(0, 1 - (b.t - 1.45) / 0.45) : 1;
+  const pop = 1 + (b.t < 0.18 ? (0.18 - b.t) * 2 : 0);
+  ctx.save();
+  ctx.translate(W / 2, H * 0.34);
+  ctx.scale(pop, pop);
+  ctx.globalAlpha = k;
+  ctx.textAlign = 'center';
+  ctx.font = '900 46px Rubik, sans-serif';
+  ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(20,14,4,0.85)';
+  ctx.strokeText(b.text, 0, 0);
+  ctx.fillStyle = '#ffb703';
+  ctx.fillText(b.text, 0, 0);
+  if (b.sub) {
+    ctx.font = '700 16px Rubik, sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeText(b.sub, 0, 30);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(b.sub, 0, 30);
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function drawCrosshair() {
   const x = mouse.x, y = mouse.y;
   ctx.strokeStyle = 'rgba(255,209,102,0.95)';
@@ -1113,27 +1238,21 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.033, (now - last) / 1000);
   last = now;
-  try {
-    if (!G.paused) update(dt);
-    render();
-  } catch (e) {
-    console.error('frame error', e);
-  }
+  if (!G.paused) update(dt);
+  render();
   requestAnimationFrame(frame);
 }
 
 /* -------------------------- wiring ------------------------- */
-if (el.btnPlay) el.btnPlay.addEventListener('click', () => { SFX.ensure(); SFX.click(); startGame(); });
-if (el.btnAgain) el.btnAgain.addEventListener('click', () => { SFX.ensure(); SFX.click(); startGame(); });
-if (el.btnRestart) el.btnRestart.addEventListener('click', () => { SFX.ensure(); SFX.click(); startGame(); });
-if (el.btnMute) el.btnMute.addEventListener('click', () => { SFX.ensure(); toggleMute(); });
+el.btnPlay.addEventListener('click', () => { SFX.ensure(); SFX.click(); startGame(); });
+el.btnAgain.addEventListener('click', () => { SFX.ensure(); SFX.click(); startGame(); });
+el.btnRestart.addEventListener('click', () => { SFX.ensure(); SFX.click(); startGame(); });
+el.btnMute.addEventListener('click', () => { SFX.ensure(); toggleMute(); });
 
 /* -------------------------- init --------------------------- */
 resize();
-setTimeout(resize, 100);
-setTimeout(resize, 500);
-if (el.best) el.best.textContent = 'BEST ' + G.best;
-if (el.startBest) el.startBest.textContent = G.best > 0 ? 'BEST ' + G.best : 'FIRST HUNT — GOOD LUCK!';
+el.best.textContent = 'BEST ' + G.best;
+el.startBest.textContent = G.best > 0 ? 'BEST ' + G.best : 'FIRST HUNT — GOOD LUCK!';
 requestAnimationFrame(frame);
 
 })();
