@@ -14,7 +14,7 @@
 
 <canvas id="game"></canvas>
 
-<!-- ======================= HUD ======================= -->
+<!-- ======================= HUD (no buttons, only wave/score) ======================= -->
 <div id="hud" class="hidden">
   <div id="hud-left">
     <div class="hud-box" id="hud-ammo">
@@ -23,57 +23,49 @@
       <div id="reload-bar"><div id="reload-fill"></div></div>
     </div>
   </div>
-
   <div id="hud-wave">WAVE 1</div>
-
   <div id="hud-right">
     <div class="hud-box" id="hud-score-box">
       <div id="score">0</div>
       <div id="best">BEST 0</div>
     </div>
-    <div id="hud-btns">
-      <button id="btn-mute" title="Sound on/off (M)">🔊</button>
-      <button id="btn-restart" title="Restart (R)">↻<span class="btn-label">Restart</span></button>
-    </div>
   </div>
 </div>
 
-<!-- ================ TOUCH CONTROLS =================== -->
+<!-- ================ TOUCH CONTROLS (joysticks only) =================== -->
 <div id="touch-ui">
   <div id="joy-base"><div id="joy-knob"></div></div>
   <div id="btn-fire">FIRE</div>
 </div>
 
-<!-- ================== START SCREEN =================== -->
+<!-- ================== START SCREEN (no buttons, tap to start) =================== -->
 <div id="overlay-start" class="overlay">
   <div class="panel">
     <div class="pixel title">🦆 DUCK HAVOC</div>
-    <p class="subtitle">The ducks fight back. Grab your shotgun and hold the line, hunter!</p>
+    <p class="subtitle">The ducks fight back. Grab your shotgun and hold the line!</p>
     <div class="controls">
-      <div class="ctl">🕹️ <b>Move</b><br><span class="dim">Joystick / <kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd></span></div>
-      <div class="ctl">⬆️ <b>Jump-dodge</b><br><span class="dim">Flick stick up / <kbd>W</kbd> / <kbd>↑</kbd></span></div>
-      <div class="ctl">🔥 <b>Shoot</b><br><span class="dim">FIRE button / Click / <kbd>Space</kbd></span></div>
-      <div class="ctl">🎯 <b>Aim</b><br><span class="dim">Auto-aim on touch · mouse on desktop</span></div>
+      <div class="ctl">🕹️ <b>Move</b><br><span class="dim">Joystick / A D / ← →</span></div>
+      <div class="ctl">⬆️ <b>Jump</b><br><span class="dim">Flick up / W / ↑</span></div>
+      <div class="ctl">🔥 <b>Shoot</b><br><span class="dim">FIRE / Tap right side / Space</span></div>
+      <div class="ctl">🎯 <b>Aim</b><br><span class="dim">Auto-aim</span></div>
     </div>
-    <p class="tips">🥚 Shoot the eggs mid-air &nbsp;·&nbsp; 💣 Blast kamikaze ducks before they land &nbsp;·&nbsp; ✨ Golden ducks worth 250 pts<br>🔫 Endless waves — survive as long as you can!</p>
-    <button id="btn-play" class="btn-play">▶ &nbsp;PLAY</button>
+    <p class="tips">Tap anywhere to start — endless waves!</p>
     <div class="dim small" id="start-best">BEST 0</div>
   </div>
 </div>
 
-<!-- ================== GAME OVER ====================== -->
+<!-- ================== GAME OVER (no buttons, tap to restart) ====================== -->
 <div id="overlay-over" class="overlay hidden">
   <div class="panel">
     <div class="pixel title red">GAME OVER</div>
-    <p class="subtitle">The ducks won this round… 🪶</p>
+    <p class="subtitle">The ducks won this round…</p>
     <div id="ov-newbest" class="badge hidden">★ NEW BEST! ★</div>
     <div class="stats">
       <div><span class="dim">SCORE</span><div class="pixel big" id="ov-score">0</div></div>
       <div><span class="dim">BEST</span><div class="pixel big gold" id="ov-best">0</div></div>
       <div><span class="dim">WAVE</span><div class="pixel big" id="ov-wave">1</div></div>
     </div>
-    <button id="btn-again" class="btn-play">↻ &nbsp;PLAY AGAIN</button>
-    <div class="dim small">or press <kbd>R</kbd> / <kbd>Enter</kbd></div>
+    <p class="tips">Tap anywhere to play again</p>
   </div>
 </div>
 
@@ -81,7 +73,7 @@
 <div id="overlay-pause" class="overlay hidden">
   <div class="panel slim">
     <div class="pixel title">PAUSED</div>
-    <p class="subtitle">Tap anywhere or press any key to resume</p>
+    <p class="subtitle">Tap anywhere to resume</p>
   </div>
 </div>
 
